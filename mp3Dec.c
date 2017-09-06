@@ -15,6 +15,10 @@
 #define POW2CACHENEG (16*4)		/* # of cached numbers for n < 0   */
 #define POW2CACHEPOS (5*4)		/* # of cached numbers for n > 0   */
 #define PI 3.14159265358979 
+#define PI4	0.78539816339744
+#define PI12 0.261799388
+#define PI36 0.087266463
+#define PI64 0.049087385
 
 /*
     NOTES ON FUNCTIONS TESTED
@@ -232,6 +236,8 @@ float lr[2][SBLIMIT][SSLIMIT];
 float re[SBLIMIT][SSLIMIT];
 float hybridIn[SBLIMIT][SSLIMIT];/* Hybrid filter input */ 
 float hybridOut[SBLIMIT][SSLIMIT];/* Hybrid filter out */                    
+float polyPhaseIn[SBLIMIT]; /* PolyPhase Input. */
+short pcm_sample[2][SSLIMIT][SBLIMIT]; 
 
 float Ci[8]={-0.6,-0.535,-0.33,-0.185,-0.095,-0.041,-0.0142,-0.0037}; 
 
@@ -259,6 +265,14 @@ void reorder(float xr[SBLIMIT][SSLIMIT], float ro[SBLIMIT][SSLIMIT],
         struct gr_info_type *gr_info, FrameHeader* header_info);
 void antialias(float xr[SBLIMIT][SSLIMIT], float hybridIn[SBLIMIT][SSLIMIT], 
         struct gr_info_type *gr_info, FrameHeader* header_info);
+void hybrid(
+        float fsIn[SSLIMIT], float tsOut[SSLIMIT], int sb, int ch,
+        struct gr_info_type *gr_info, FrameHeader* header_info); 
+void inv_mdct(float in[18], float out[36], int block_type);
+void SubBandSynthesis(float *bandPtr, int ch, short *samples);
+void create_syn_filter(double doublefilter[64][SBLIMIT]);
+
+
 
 
 int main(int argc, char **argv)
@@ -338,6 +352,101 @@ void get_scale_factors(NewBuffer* load_info, SideInfoType* side_info, scalefac_t
 
 
 
+void create_syn_filter(double doublefilter[64][SBLIMIT]) {
+    register int i, k;
+    for(i = 0; i < 64; i++) {
+        for(k = 0; k < 32; k++) {
+            filter[i][k] = 1e9 * cos((PI64*i+PI4)*(2*k+1));
+            if (filter[i][k] >= 0) {
+                /*modff(filter[i][k]+0.5, &filter[i][k]);*/
+                filter[i][k] = floor(filter[i][k] + 0.5);
+            } else {
+                /*modff(filter[i][k]-0.5, &filter[i][k]);*/
+                filter[i][k] = floor(filter[i][k] - 0.5);
+            }
+            filter[i][k] *= 1e-9;
+        }
+    }
+}
+
+
+
+
+void SubBandSynthesis(float *bandPtr, int ch, short *samples) {
+    register int i, j, k;
+    int iii, jjj;
+    register float *bufOffsetPtr,sum;
+    register long foo;
+    static int init = 1;
+    typedef float NN[64][32];
+    typedef double MM[64][32];
+    static NN *filter;
+    static MM *doublefilter;
+    typedef float BB[2][1024];
+    static BB *buf;
+    static int bufOffset[2] = { 64, 64 }; 
+
+    if(init) {
+        buf = (BB *) malloc(sizeof(BB));
+        doublefilter = (MM *) malloc(sizeof(MM));
+        filter = (NN *) malloc(sizeof(NN));
+        create_syn_filter(*doublefilter);
+        for (iii = 0; iii < 64; iii++) {
+            for (jjj = 0; jjj < 32; jjj++)
+                (*filter)[iii][jjj] = (float) (*doublefilter)[iii][jjj];
+            ;
+        }
+        init = 0; 
+    }
+}
+
+
+
+
+void inv_mdct(
+        float in[18],
+        float out[36],
+        int	block_type) {
+
+    int i,m,N,p;
+    float tmp[12],sum;
+    for(i = 0; i < 36; i++)
+        out[i] = 0; 
+
+    if(block_type == 2) {
+        N = 12;
+        for(i = 0; i < 3; i++) {
+            for(p = 0; p < N; p++) {
+                sum = 0.0;
+                for(m = 0; m < N/2; m++) {
+                    int k = (m) + (m<<1);
+                    sum += in[i+k] * (cos_tab_1[p][m]); 
+                }
+                tmp[p] = sum * win[block_type][p] ;
+            }
+            for(p = 0; p < N; p++) {
+                int k = (i<<1) + (i<<2); 
+                out[k+p+6] += tmp[p];
+            }
+        }
+    } else {
+        N=36;
+        for(p= 0;p<N;p++){
+            sum = 0.0;
+            for(m=0;m<N/2;m++){
+                int k = ((p*m)<<2) + (p<<1) + (m<<5)+(m<<2)+(m<<1)+19;
+                while(k>=144){
+                    k = k - 144;
+                }
+                sum += in[m] * COS[k];
+            }
+            out[p] = sum * win[block_type][p];
+        } 
+    }
+} 
+
+
+
 void hybrid(
         float fsIn[SSLIMIT], /* freq samples persubband in */
         float tsOut[SSLIMIT], /* time samples per subband out */
@@ -366,6 +475,12 @@ void hybrid(
             (sb < 2)) ? 0 : gr_info->block_type; 
     
     //inv_mdct
+    inv_mdct(fsIn, rawout, bt);
+    /* Overlap addition */
+    for (ss = 0; ss < SSLIMIT; ss++) {		/* 18 */
+        tsOut[ss] = rawout[ss] + prevblck[ch][sb][ss];
+        prevblck[ch][sb][ss] = rawout[ss+18];
+    }
 }
 
 
@@ -1399,7 +1514,26 @@ void frame_details(NewBuffer* start_frame){
                                     hybrid here
                                 */
 
+                                hybrid(hybridIn[sb], hybridOut[sb], sb, ch, &(sideInfo.ch[ch].gr[gr]), &readFrame);
+
                             }
+
+                            for(ss = 0; ss < 18; ss++) {
+                                for(sb = 0; sb < SBLIMIT; sb++) {
+                                    if((ss%2) && (sb%2)) {
+                                        hybridOut[sb][ss] = -hybridOut[sb][ss]; 
+                                    }
+                                }
+                            }
+
+                            for(ss = 0; ss < 18; ss++) {
+                                for (sb = 0; sb < SBLIMIT; sb++)
+                                    polyPhaseIn[sb] = hybridOut[sb][ss]; 
+                                /*
+                                    Here add subBandSynthesis..!!!!
+                                */
+                            }
+
                         }
                     }
                     
