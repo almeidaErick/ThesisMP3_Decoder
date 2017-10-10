@@ -169,7 +169,7 @@ signal start_saving_short : std_logic := '0'; -- start writing elements to outpu
 signal section_output_done : std_logic := '0'; -- check for short block (in process that writes output short block), 
 -- section_output_done is controlled in save_out_ram proces..!!!!!!!
 
-TYPE save_part_output IS (S0, S1, S2);
+TYPE save_part_output IS (S0, S1, S2, Sx);
 SIGNAL save_out_ram : save_part_output := S0;
 signal get_index_i : integer := 0;
 
@@ -204,6 +204,8 @@ begin
     done_writing_output <= done_output_block; 
     done_input_block <= done_writing_input;
     
+    
+    pl_address_in <= pl_address_in_short when short_block_start = '1' else pl_address_in_long; -- this statement is not working
     
     -- map COS_RAM to get values from look up table
     g1: COS_RAM PORT MAP
@@ -291,13 +293,15 @@ begin
 --                        writing_control <= write_output_buffer;
 --                    end if;
                     writing_control <= write_output_buffer;
-                    short_block_start <= '0';
-                    long_block_start <= '0';
+--                    short_block_start <= '0';
+--                    long_block_start <= '0';
                 
                 when write_output_buffer =>
                     -- done_writing_output just gonna be high for one clock cycle...!!!!! check this..!!
                     if(done_output_block = 1) then
                         writing_control <= wait_to_output;
+                        short_block_start <= '0';
+                        long_block_start <= '0';
                     end if;
                     
                 when wait_to_output =>
@@ -450,7 +454,7 @@ begin
                         
                         -- START sending data to output block ram
                         -- set address for output block ram
-                        pl_address_in <= std_logic_vector(to_unsigned(hold, pl_address_in'length));
+                        pl_address_in_short <= std_logic_vector(to_unsigned(hold, pl_address_in_short'length));
                         -- set input for output block
                         --pl_input_integer <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
                         --pl_input_integer <= tmp(p);
@@ -459,7 +463,7 @@ begin
                         pl_mode_control_block <= '1';
                         -- END sending data to output block ram
                         
-                        save_out_ram <= S2;
+                        save_out_ram <= Sx;
                     else
                         section_output_done <= '1';
                         save_out_ram <= S0;
@@ -467,6 +471,8 @@ begin
                         -- set block ram to read mode
                         pl_mode_control_block <= '0';
                     end if;
+                when Sx =>
+                    save_out_ram <= S2;
                 when S2 =>
                     --pl_input_integer <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
                     -- Here just change variables..!! 
