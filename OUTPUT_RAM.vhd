@@ -66,13 +66,6 @@ begin
             if reset = '1' then
                 DataMem <= (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
             end if;
---            if(to_integer(unsigned(address_in)) > 0) then
---                second_output <= DataMem(to_integer(unsigned(address_in)) + 1); -- Synchronous read when value is write.
---            else
---                second_output <= DataMem(to_integer(unsigned(address_in))); -- Synchronous read when value is write.
---            end if;
-            --second_output <= DataMem(to_integer(unsigned(address_in)) + 1); -- Synchronous read when value is write.
-            
         end if;
     end process;
 

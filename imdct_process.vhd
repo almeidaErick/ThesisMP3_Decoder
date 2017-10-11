@@ -154,11 +154,6 @@ signal done_output_block : Integer; -- com from PL to PS indicates when the outp
 
 -- SIGNALS TO CONTROL LOOK UP TABLES START HERE ---------------------------------------------------------------------------------------------------------------------------------
 signal cos_address_table : std_logic_vector(7 downto 0); -- control address for COS_RAM look up table
---signal table_selection : std_logic_vector(1 downto 0); -- control from which table are we going to read from 
-
---signal table_selection_short : std_logic_vector(1 downto 0); 
---signal table_selection_long : std_logic_vector(1 downto 0); 
-
 
 signal cos_block_out : integer; -- send COS_ROM output
 signal cos_tab_out : integer; -- send COS_TAB1_ROM output
@@ -212,12 +207,11 @@ signal done_writing_short : std_logic := '0';
 --temp array,,!!!
 type temporal_array is array (0 to 11) of integer;
 signal tmp : temporal_array := (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); -- access to elements of array like ... tmp(1) <= 1234; used in short block process
---signal sum_tot : integer := 0; -- used to pass from process contro_short_block to write_output process
 
 -- SIGNALS TO CONTROL FSM FOR PROCESSING IMDCT FUNCTION END HERE ------------------------------------------------------------------------------------------------------------
 -- add signals above
 
-signal testing : integer;
+--signal testing : integer;
 
 begin
     clock_control <= clk;
@@ -294,13 +288,6 @@ begin
         mode => pl_mode_control_block, -- output ram mode controled by PL ---------------------------------------------- control from PL
         reset => full_reset
     );
-
---    process(clk)
---    begin
---        if (rising_edge(clk)) then
---            output_val <= (to_integer(signed(input_val)) * to_integer(signed(input_val))* to_integer(signed(input_val)));
---        end if;
---    end process;
     
     -- Start process tocontrol the signal for short and long blocks, also check here when the signal for finishing writing the output and input block ram changes..!!!!
     process(clk)
@@ -318,18 +305,8 @@ begin
                         writing_control <= wait_to_input;
                     end if;
                 
-                when wait_to_input =>
-   
---                    case short_block_start is
---                        when '1' => pl_address_in <= pl_address_in_short;
---                        when others => pl_address_in <= pl_address_in_long;
---                    end case;
---                    if(done_input_block = '0') then
---                        writing_control <= write_output_buffer;
---                    end if;
+                when wait_to_input =>                   
                     writing_control <= write_output_buffer;
---                    short_block_start <= '0';
---                    long_block_start <= '0';
                 
                 when write_output_buffer =>
                     -- done_writing_output just gonna be high for one clock cycle...!!!!! check this..!!
@@ -356,7 +333,6 @@ begin
     process(clk)
     variable i : integer := 0;
     variable m : integer := 0;
-    --variable N : integer;
     variable p : integer := 0;
     variable k : integer := 0;
     variable hold : integer := 0;
@@ -369,6 +345,7 @@ begin
                     if(short_block_start = '1') then
                         short_block_control <= S1;
                     else
+                        -- reset every variable
                         i := 0;
                         get_index_i <= i;
                         m := 0;
@@ -376,7 +353,6 @@ begin
                         hold := 0;
                         k := 0;
                         sum := 0;
-                        --done_output_block <= 0;
                         done_writing_short <= '0';
                     end if;
                 when S1 =>
@@ -384,10 +360,9 @@ begin
                         short_block_control <= S2;
                         p := 0; -- restart inner loop..!!! (p)
                     else
+                        -- Specify that short block process has been finished
                         short_block_control <= S0;
-                        --done_output_block <= 1;
                         done_writing_short <= '1';
-                        --add here output signal
                     end if;
                 when S2 =>
                     if(p < 12) then
@@ -395,13 +370,12 @@ begin
                         m := 0; -- restart inner loop..!!! (m)
                         sum := 0; -- restart sum...!!!
                     else
+                        -- Start saving samples to output block ram
                         start_saving_short <= '1';
                         short_block_control <= S8;
                     end if;
                 when S3 =>
                     if(m < 6) then
-                        --k := (m) + (m sll 1);
-                        --k := (m) + shift_left(unsigned(m), 1);
                         k := m + (2*m);
                         hold := i + k; -- to make sure we tae the correct index of the array (used for input block ram)
                         short_block_control <= S4;
@@ -425,16 +399,16 @@ begin
                         -- END getting index for table WIN_ROM here
                     end if;
                 when S4 =>
-                    -- add sum here..!!!!!! sum += in[hold] * (cos_tab_1[p][m])
-                    --sum := sum + (pl_output_integer * cos_tab_out);
-                    testing <= cos_tab_out * 2;
+                    -- this state is to stabilize multiplexers used for processing short and long signal blocks for (pl_address_out_short)
+                    --testing <= cos_tab_out * 2;
                     short_block_control <= S5;
                 when S5 =>
+                    -- get sum of samples accoring to the formula specified in the C-file 
                     sum := sum + (pl_output_integer * cos_tab_out);
                     m := m + 1;
                     short_block_control <= S3;
                 when S6 =>
-                
+                    -- this state is to stabilize multiplexers used for processing short and long signal blocks for (win_row/col_short to read from WIN_RAM)
                     short_block_control <= S7;
                 when S7 =>
                     -- START calculate tmp[p] here..!!!!
@@ -442,7 +416,9 @@ begin
                     p := p + 1;
                     short_block_control <= S2;
                 when S8 =>
+                    -- Signal start saving will only be high for one cycle, enough to start process for saving samples to output block ram
                     start_saving_short <= '0';
+                    -- Does not change of state unless all the samples have been written into the output block ram
                     if(section_output_done = '1') then
                         short_block_control <= S1;
                         i := i + 1;
@@ -464,58 +440,34 @@ begin
             case save_out_ram is
                 when S0 =>
                     if(start_saving_short = '1') then
+                        -- Signal received from short_control process to start saving samples to output block ram
                         save_out_ram <= S1;
                         k := get_index_i*6;
                         hold := k + p + 6;
                     else
                         p := 0;
-                        -- set block ram to read mode
-                        --pl_mode_control_block <= '0';
+                        
                     end if;
                     section_output_done <= '0'; -- outputs are not ready ..!!
              
                 when S1 =>
                     if(p < 12) then
-                        -- write here to output block ram..!!!!!! use hold index..!!!
-                        -- pl_input_integer <= pl_input_integer + tmp(p); --ORIGINAL>>!! 
-                        -- pl_input_integer <= tmp(p);
-                        
-                        -- START sending data to output block ram
-                        -- set address for output block ram
                         pl_address_in_short <= std_logic_vector(to_unsigned(hold, pl_address_in_short'length));
-                        -- set input for output block
-                        --pl_input_integer <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
-                        --pl_input_integer <= tmp(p);
-                        --previous_out_ram := pl_outputBlock_integer + tmp(p);
-                        -- set block ram to write mode
-                        --pl_mode_control_block <= '1';
-                        -- END sending data to output block ram
-                        
                         save_out_ram <= Sx;
                     else
                         section_output_done <= '1';
                         save_out_ram <= S0;
-                        
-                        -- set block ram to read mode
-                        --pl_mode_control_block <= '0';
+
                     end if;
                 when Sx =>
+                    -- this state is to stabilize multiplexers used for processing short and long signal blocks for (pl_address_in_short)
                     save_out_ram <= S2;
                 when S2 =>
-                    --pl_input_integer <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
-                    -- Here just change variables..!! 
-                    -- Give one more clock cycle to get previous value saved..!!
-                    --pl_input_integer <= previous_out_ram;
-                    --pl_input_integer <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
+                    -- save samples to output block ram, having defined previously the address where the sample is going to be located.
                     pl_input_integer_short <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
                     p := p + 1;
                     save_out_ram <= S1;
                     hold := k + p + 6;
-                    --pl_mode_control_block <= '1';
-                    -- set address for output block ram
-                    --pl_address_in <= std_logic_vector(to_unsigned(hold, pl_address_in'length));
-                    
-                    --pl_input_integer <= tmp(p); overflow here, do not put this variable here..!!!
             end case;
         end if;
     end process;
@@ -538,7 +490,6 @@ begin
                         m := 0;
                         p := 0;
                         k := 0;
-                        --done_output_block <= 0;
                         sum := 0; -- restart sum...!!!
                         done_writing_long <= '0';
                     end if;
@@ -551,15 +502,11 @@ begin
                         pl_address_in_long <= std_logic_vector(to_unsigned(p, pl_address_in_short'length));
                     else
                         long_block_control <= S0;
-                        -- add here output signal..!!!!!
-                        --done_output_block <= 1; -- check this..!!! if signal is enough to keep it up for one clock cycle
                         done_writing_long <= '1';
                     end if;
                 when S2 =>
                     if(m < 18) then
                         long_block_control <= S3;
-                        -- calculate here k..!!!
-                        -- int k = ((p*m)<<2) + (p<<1) + (m<<5)+(m<<2)+(m<<1)+19;
                         k := ((p * m) * 4) + (p * 2) + (m * 32) + (m * 4) + (m * 2) + 19;
                         
                         -- START add index for reading from input block ram
@@ -569,7 +516,6 @@ begin
                         
                     else 
                         long_block_control <= S5;
-                        -- send output values here..!!!!
                         
                         -- START getting index for table WIN_ROM here
                         win_row_long <= b"000000"&block_type_frame;
@@ -608,17 +554,22 @@ begin
         if(rising_edge(clk)) then
             case send_output_control is
                 when S0 =>
+                    -- check if short_block or long_block control signal when finishing writing to the output block ram have been detected
                     if ((done_writing_long = '1') or (done_writing_short = '1')) then
                         send_output_control <= S1;
+                        -- send main signal as high for the PS side can detect when start reading samples
                         done_output_block <= 1;
                     end if;
                 when S1 =>
-                    if(done_input_block = '0') then -- add here to wait until done_input is 0, this step is used in 2 processes.
+                    -- when PS has finished writing to input block ram, detect signal and restart entire processes, to read from input block ram, calculate samples, write to output block ram etc etc. 
+                    if(done_input_block = '0') then 
                         done_output_block <= 0;
                         send_output_control <= S2;
                         full_reset <= '1';
                     end if;
                 when S2 =>
+                    -- when the input signal that shows the input_block ram has been populated, then delete entire output_block ram, since short_block processing needs to ad the previous value for the 
+                    -- block ran at specific address to the new signal, and if any value is present into the output block ram, then inconsistent results will be noted, check simulations for more details.
                     full_reset <= '0';
                     send_output_control <= S0;
             end case;
