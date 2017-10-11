@@ -54,8 +54,8 @@ component COS_RAM Port
     (
         Address : in STD_LOGIC_VECTOR(7 downto 0);
         clock : in STD_LOGIC;
-        output_data : out INTEGER;
-        table_select : in STD_LOGIC_VECTOR(1 downto 0)
+        output_data : out INTEGER
+        --table_select : in STD_LOGIC_VECTOR(1 downto 0)
     );
 end component;
 
@@ -64,8 +64,8 @@ component COS_TAB1_ROM Port(
         row : in STD_LOGIC_VECTOR(7 downto 0);
         col : in STD_LOGIC_VECTOR(7 downto 0);
         clock : in STD_LOGIC;
-        output_data : out INTEGER;
-        table_select : in STD_LOGIC_VECTOR(1 downto 0)
+        output_data : out INTEGER
+        --table_select : in STD_LOGIC_VECTOR(1 downto 0)
     );
 end component;
 
@@ -74,8 +74,8 @@ component WIN_ROM Port(
         row : in STD_LOGIC_VECTOR(7 downto 0);
         col : in STD_LOGIC_VECTOR(7 downto 0);
         clock : in STD_LOGIC;
-        output_data : out INTEGER;
-        table_select : in STD_LOGIC_VECTOR(1 downto 0)
+        output_data : out INTEGER
+        --table_select : in STD_LOGIC_VECTOR(1 downto 0)
     );
 end component;
 
@@ -110,6 +110,12 @@ end component;
 signal ps_input_integer : Integer; -- goes from input (PS) to input block ram
 signal ps_output_integer : Integer; -- goes from output block ram to PS.
 signal pl_input_integer : Integer := 0; -- goes from (PL) to output block ram, initialized as 0..!!!
+
+
+signal pl_input_integer_short : Integer := 0;  --input signal that goes from PL to output block rame (short block)
+signal pl_input_integer_long : Integer := 0; --input signal that goes from PL to output block rame (long block)
+
+
 signal pl_output_integer : Integer; -- goes from input block ram to PL.
 signal pl_outputBlock_integer : Integer := 0; -- goes from output block ram to PL.
 signal clock_control : std_logic; -- clock that will control every other block 
@@ -127,6 +133,9 @@ signal pl_address_in_long : std_logic_vector(7 downto 0) := X"00"; -- write to o
 signal pl_address_in_short : std_logic_vector(7 downto 0) := X"00"; -- write to output block ram (selected between long and whort signal to send to pl_address_in)
 
 signal pl_address_out: std_logic_vector(7 downto 0); -- read from input block ram
+
+signal pl_address_out_short: std_logic_vector(7 downto 0);
+signal pl_address_out_long: std_logic_vector(7 downto 0);
 -- signals to control block RAM (input or output) end here
 
 signal block_type_frame : std_logic_vector(1 downto 0); -- come from input from PS to PL
@@ -145,12 +154,28 @@ signal done_output_block : Integer; -- com from PL to PS indicates when the outp
 
 -- SIGNALS TO CONTROL LOOK UP TABLES START HERE ---------------------------------------------------------------------------------------------------------------------------------
 signal cos_address_table : std_logic_vector(7 downto 0); -- control address for COS_RAM look up table
-signal table_selection : std_logic_vector(1 downto 0); -- control from which table are we going to read from 
+--signal table_selection : std_logic_vector(1 downto 0); -- control from which table are we going to read from 
+
+--signal table_selection_short : std_logic_vector(1 downto 0); 
+--signal table_selection_long : std_logic_vector(1 downto 0); 
+
+
 signal cos_block_out : integer; -- send COS_ROM output
 signal cos_tab_out : integer; -- send COS_TAB1_ROM output
 signal win_block_out : integer; -- send WIN_ROM output;
+
+
 signal win_row : STD_LOGIC_VECTOR(7 downto 0); -- row address for WIN_ROM table
 signal win_col : STD_LOGIC_VECTOR(7 downto 0); -- column address for WIN_ROM table
+
+
+signal win_row_short : STD_LOGIC_VECTOR(7 downto 0);
+signal win_row_long : STD_LOGIC_VECTOR(7 downto 0);
+
+signal win_col_short : STD_LOGIC_VECTOR(7 downto 0);
+signal win_col_long : STD_LOGIC_VECTOR(7 downto 0);
+
+
 signal cos_tab_row : STD_LOGIC_VECTOR(7 downto 0); -- row address for COS_TAB1_ROW table
 signal cos_tab_col : STD_LOGIC_VECTOR(7 downto 0); -- column address for COS_TAB1_ROW table
 -- SIGNALS TO CONTROL LOOK UP TABLES END HERE ---------------------------------------------------------------------------------------------------------------------------------
@@ -175,7 +200,7 @@ signal get_index_i : integer := 0;
 
 
 
-TYPE long_block IS (S0, S1, S2, S3, S4, S5);
+TYPE long_block IS (S0, S1, S2, S3, S4, S5, S6);
 SIGNAL long_block_control: long_block := S0;
 
 TYPE send_output_signal IS (S0, S1, S2);
@@ -192,6 +217,8 @@ signal tmp : temporal_array := (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); -- access t
 -- SIGNALS TO CONTROL FSM FOR PROCESSING IMDCT FUNCTION END HERE ------------------------------------------------------------------------------------------------------------
 -- add signals above
 
+signal testing : integer;
+
 begin
     clock_control <= clk;
     ps_mode_control_block <= mode_input_output;
@@ -205,15 +232,23 @@ begin
     done_input_block <= done_writing_input;
     
     
-    pl_address_in <= pl_address_in_short when short_block_start = '1' else pl_address_in_long; -- this statement is not working
+    pl_address_in <= pl_address_in_short when short_block_start = '1' else pl_address_in_long; -- this statement is working
+    pl_address_out <= pl_address_out_short when short_block_start = '1' else pl_address_out_long; -- this statement is  working
+    pl_input_integer <= pl_input_integer_short when short_block_start = '1' else pl_input_integer_long; -- this statement is  working
+    --table_selection <= table_selection_short when short_block_start = '1' else table_selection_long; -- this statement is now working
+    
+    win_row <= win_row_short when short_block_start = '1' else win_row_long;
+    win_col <= win_col_short when short_block_start = '1' else win_col_long;
+    
+     
     
     -- map COS_RAM to get values from look up table
     g1: COS_RAM PORT MAP
     (
         Address => cos_address_table, -------------------------------------- control from PL...!!!
         clock => clock_control,
-        output_data => cos_block_out, -------------------------------------- control from PL...!!!
-        table_select => table_selection -------------------------------------- control from PL...!!!    
+        output_data => cos_block_out -------------------------------------- control from PL...!!!
+        --table_select => table_selection -------------------------------------- control from PL...!!!    
     );
     
     -- map COS_TAB1_ROM to get values from look up table
@@ -222,8 +257,8 @@ begin
         row => cos_tab_row, -------------------------------------- control from PL...!!!
         col => cos_tab_col, -------------------------------------- control from PL...!!!
         clock => clock_control,
-        output_data => cos_tab_out, -------------------------------------- control from PL...!!!
-        table_select => table_selection -------------------------------------- control from PL...!!!
+        output_data => cos_tab_out -------------------------------------- control from PL...!!!
+        --table_select => table_selection -------------------------------------- control from PL...!!!
     );   
     
     -- map WIN_ROM to get values from look up table
@@ -232,8 +267,8 @@ begin
         row => win_row, -------------------------------------- control from PL...!!!
         col => win_col, -------------------------------------- control from PL...!!!
         clock => clock_control,
-        output_data => win_block_out, -------------------------------------- control from PL...!!!
-        table_select => table_selection -------------------------------------- control from PL...!!!
+        output_data => win_block_out -------------------------------------- control from PL...!!!
+        --table_select => table_selection -------------------------------------- control from PL...!!!
     );
     
     -- map INPUT_RAM to populate input block ram from PS and read it back from PL
@@ -279,7 +314,7 @@ begin
                         else
                             long_block_start <= '1';
                         end if;
-                        
+                        pl_mode_control_block <= '1'; -- set block ram output as write mode..!!!
                         writing_control <= wait_to_input;
                     end if;
                 
@@ -302,6 +337,7 @@ begin
                         writing_control <= wait_to_output;
                         short_block_start <= '0';
                         long_block_start <= '0';
+                        pl_mode_control_block <= '0'; -- set block ram output to read mode..!!!
                     end if;
                     
                 when wait_to_output =>
@@ -374,42 +410,35 @@ begin
                         cos_tab_row <= std_logic_vector(to_unsigned(p, cos_tab_row'length));
                         cos_tab_col <= std_logic_vector(to_unsigned(m, cos_tab_col'length));
                         --END add indexes for control block called COS_TAB_1
-                        
-                        -- START activate COS_TAB_1
-                        table_selection <= b"01";
-                        -- END activate COS_TAB_1
+                       
                         
                         -- START add index for reading from input block ram
-                        pl_address_out <= std_logic_vector(to_unsigned(hold, pl_address_out'length));
+                        pl_address_out_short <= std_logic_vector(to_unsigned(hold, pl_address_out_short'length));
+                        --pl_address_out <= std_logic_vector(to_unsigned(hold, pl_address_out'length));
                         -- END add index for reading from input block ram
                     else 
                         short_block_control <= S6;
                         
                         -- START getting index for table WIN_ROM here
-                        win_row <= b"000000"&block_type_frame;
-                        win_col <= std_logic_vector(to_unsigned(p, win_col'length));
+                        win_row_short <= b"000000"&block_type_frame;
+                        win_col_short <= std_logic_vector(to_unsigned(p, win_col'length));
                         -- END getting index for table WIN_ROM here
-                        
-                        -- START activate WIN_ROM table
-                        table_selection <= b"10";
-                        -- END activate WIN_ROM table
                     end if;
                 when S4 =>
                     -- add sum here..!!!!!! sum += in[hold] * (cos_tab_1[p][m])
-                    sum := sum + (pl_output_integer * cos_tab_out);
+                    --sum := sum + (pl_output_integer * cos_tab_out);
+                    testing <= cos_tab_out * 2;
                     short_block_control <= S5;
                 when S5 =>
+                    sum := sum + (pl_output_integer * cos_tab_out);
                     m := m + 1;
                     short_block_control <= S3;
                 when S6 =>
                 
-                    -- START calculate tmp[p] here..!!!!
-                    tmp(p) <= sum * win_block_out;
-                    --tmp(p) <= sum;
-                    -- END calculate tmp[p] here..!!!!
-                    
                     short_block_control <= S7;
                 when S7 =>
+                    -- START calculate tmp[p] here..!!!!
+                    tmp(p) <= sum * win_block_out;
                     p := p + 1;
                     short_block_control <= S2;
                 when S8 =>
@@ -436,13 +465,12 @@ begin
                 when S0 =>
                     if(start_saving_short = '1') then
                         save_out_ram <= S1;
-                        --k := (get_index_i sll 1) + (get_index_i sll 2);
-                        --k := shift_left(unsigned(get_index_i), 1) + shift_left(unsigned(get_index_i), 2);
-                        --k := (get_index_i*2) + (get_index_i*4);
                         k := get_index_i*6;
                         hold := k + p + 6;
                     else
                         p := 0;
+                        -- set block ram to read mode
+                        --pl_mode_control_block <= '0';
                     end if;
                     section_output_done <= '0'; -- outputs are not ready ..!!
              
@@ -460,7 +488,7 @@ begin
                         --pl_input_integer <= tmp(p);
                         --previous_out_ram := pl_outputBlock_integer + tmp(p);
                         -- set block ram to write mode
-                        pl_mode_control_block <= '1';
+                        --pl_mode_control_block <= '1';
                         -- END sending data to output block ram
                         
                         save_out_ram <= Sx;
@@ -469,7 +497,7 @@ begin
                         save_out_ram <= S0;
                         
                         -- set block ram to read mode
-                        pl_mode_control_block <= '0';
+                        --pl_mode_control_block <= '0';
                     end if;
                 when Sx =>
                     save_out_ram <= S2;
@@ -478,7 +506,8 @@ begin
                     -- Here just change variables..!! 
                     -- Give one more clock cycle to get previous value saved..!!
                     --pl_input_integer <= previous_out_ram;
-                    pl_input_integer <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
+                    --pl_input_integer <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
+                    pl_input_integer_short <= pl_outputBlock_integer + tmp(p); -- adding previously saved number on output ram and tmp(p) to create a new entry at the specified index of the block ram
                     p := p + 1;
                     save_out_ram <= S1;
                     hold := k + p + 6;
@@ -498,6 +527,7 @@ begin
     variable k : integer := 0;
     variable p : integer := 0;
     variable m : integer := 0;
+    variable sum : integer := 0;
     begin
         if(rising_edge(clk)) then
             case long_block_control is
@@ -509,12 +539,16 @@ begin
                         p := 0;
                         k := 0;
                         --done_output_block <= 0;
+                        sum := 0; -- restart sum...!!!
                         done_writing_long <= '0';
                     end if;
                 when S1 =>
                     if(p < 36) then
                         long_block_control <= S2;
                         m := 0; -- start inner loop again..!!!
+                        sum := 0; -- restart sum...!!!
+                        -- set address for output block ram
+                        pl_address_in_long <= std_logic_vector(to_unsigned(p, pl_address_in_short'length));
                     else
                         long_block_control <= S0;
                         -- add here output signal..!!!!!
@@ -529,24 +563,37 @@ begin
                         k := ((p * m) * 4) + (p * 2) + (m * 32) + (m * 4) + (m * 2) + 19;
                         
                         -- START add index for reading from input block ram
-                        --pl_address_out <= std_logic_vector(to_unsigned(hold, pl_address_out'length));
+                        pl_address_out_long <= std_logic_vector(to_unsigned(m, pl_address_out_long'length));
                         -- END add index for reading from input block ram
+                        
+                        
                     else 
                         long_block_control <= S5;
                         -- send output values here..!!!!
+                        
+                        -- START getting index for table WIN_ROM here
+                        win_row_long <= b"000000"&block_type_frame;
+                        win_col_long <= std_logic_vector(to_unsigned(p, win_col'length));
+                        -- END getting index for table WIN_ROM here
+                        
                     end if; 
                 when S3 =>
                     if(k >= 144) then
                         k := k - 144;
                     else 
                         long_block_control <= S4;
-                        -- add sum here..!!!
+                        cos_address_table <= std_logic_vector(to_unsigned(k, cos_address_table'length)); -- give address for reading values from COS_RAM block ram
                     end if;
+                    
                 when S4 =>
+                    sum := sum + (pl_output_integer * cos_block_out);
                     m := m + 1;
                     long_block_control <= S2;
-                    
+               
                 when S5 =>
+                    long_block_control <= S6;
+                when S6 =>
+                    pl_input_integer_long <= sum * win_block_out; -- adding result to output block ram
                     p := p + 1;
                     long_block_control <= S1;
                 
@@ -578,15 +625,4 @@ begin
         end if;
     end process;
     -- End control output signal..!
-    
-    
---    process(done_input_block)
---    begin
---        if(rising_edge(done_input_block)) then
---            -- clear output RAM
---            clear: for i in 0 to 35 loop
-                
---            end loop clear;
---        end if;
---    end process;
 end IMP;

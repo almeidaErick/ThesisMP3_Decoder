@@ -36,8 +36,8 @@ entity COS_RAM is
     Port(
         Address : in STD_LOGIC_VECTOR(7 downto 0);
         clock : in STD_LOGIC;
-        output_data : out INTEGER;
-        table_select : in STD_LOGIC_VECTOR(1 downto 0)
+        output_data : out INTEGER
+        --table_select : in STD_LOGIC_VECTOR(1 downto 0)
     );
 end COS_RAM;
 
@@ -65,9 +65,9 @@ begin
     process(clock)
     begin
         if rising_edge(clock) then
-            if (table_select = b"00") then
+            --if (table_select = b"00") then
                 output_data <= GET_COS_ROM(to_integer(unsigned(Address)));
-            end if; 
+            --end if; 
         end if;
     end process;
 --output_data <= GET_COS_ROM(to_integer(unsigned(Address)));  -- read from COS table (asynchronous reads)

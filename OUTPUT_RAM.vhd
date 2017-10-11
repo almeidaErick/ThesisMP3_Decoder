@@ -46,9 +46,9 @@ entity OUTPUT_RAM is
 end OUTPUT_RAM;
 
 architecture Behavioral of OUTPUT_RAM is
-type RAM is array (0 to 31) of Integer;
+type RAM is array (0 to 35) of Integer;
 
-signal DataMem: RAM := (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+signal DataMem: RAM := (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
 signal second_output : integer := 0;
 --signal DataMem: RAM := (others => (others => '0')); -- Initialize as 0 the entire memory block 
 begin
@@ -64,7 +64,7 @@ begin
             end if;
             
             if reset = '1' then
-                DataMem <= (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+                DataMem <= (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
             end if;
 --            if(to_integer(unsigned(address_in)) > 0) then
 --                second_output <= DataMem(to_integer(unsigned(address_in)) + 1); -- Synchronous read when value is write.
