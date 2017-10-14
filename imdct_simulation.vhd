@@ -55,7 +55,7 @@ architecture Behavioral of imdct_simulation is
     signal output_val : Integer; -- no value here
     signal address_in : std_logic_vector(7 downto 0) := X"00"; 
     signal address_out : std_logic_vector(7 downto 0) := X"00"; 
-    signal block_type : std_logic_vector(1 downto 0) := b"10"; 
+    signal block_type : std_logic_vector(1 downto 0) := b"11"; 
     signal done_writing_input : std_logic := '0'; 
     signal mode_input_output : std_logic := '0'; 
     signal done_writing_output : Integer; -- no value here

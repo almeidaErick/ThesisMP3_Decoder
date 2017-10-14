@@ -44,9 +44,9 @@ entity INPUT_RAM is
 end INPUT_RAM;
 
 architecture Behavioral of INPUT_RAM is
-type RAM is array (0 to 31) of Integer;
---signal DataMem: RAM := (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
-signal DataMem: RAM := (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32);
+type RAM is array (0 to 35) of Integer;
+--signal DataMem: RAM := (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+signal DataMem: RAM := (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36);
 --signal DataMem: RAM := (others => (others => '0')); -- Initialize as 0 the entire memory block 
 begin
     process(clock)

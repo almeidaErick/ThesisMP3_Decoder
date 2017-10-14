@@ -37,8 +37,7 @@ entity WIN_ROM is
         row : in STD_LOGIC_VECTOR(7 downto 0);
         col : in STD_LOGIC_VECTOR(7 downto 0);
         clock : in STD_LOGIC;
-        output_data : out INTEGER;
-        table_select : in STD_LOGIC_VECTOR(1 downto 0)
+        output_data : out INTEGER
     );
 end WIN_ROM;
 
@@ -82,11 +81,8 @@ begin
     process(clock)
     begin
         if rising_edge(clock) then
-            if (table_select = b"10") then
-                output_data <= GET_WIN_ROM((to_integer(unsigned(row))),(to_integer(unsigned(col)))); -- synchronous reads
-            end if; 
+            output_data <= GET_WIN_ROM((to_integer(unsigned(row))),(to_integer(unsigned(col)))); -- synchronous reads
         end if;
     end process;
---output_data <= GET_WIN_ROM(to_integer(unsigned(row)))(to_integer(unsigned(col)));  -- read from WIN table (asynchronous)
 
 end Behavioral;
