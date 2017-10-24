@@ -7,11 +7,13 @@
 #include "adventures_with_ip.h"
 #include "audio.h"
 #include "math.h"
+#include "ff.h"
 
 #define	BUFFERSIZE 8192		/* x 2 bytes */
+unsigned int counter;
 
 
-u32 *baseaddr_p = (u32*) IMDCT_BASE;
+//u32 *baseaddr_p = (u32*) IMDCT_BASE;
 
 
 
@@ -197,35 +199,64 @@ void audio_stream(){
 	//int index = 0;
 	u32  in_left, in_right;
 	u32 read = 20;
+	u32 read_note;
+	FIL file1;
+	FRESULT result;
 	//u32 read = 0b11111111111111111111111111101011;
 	//u32 counter = 0;
 
 	xil_printf("HERE TEST\n\r");
+	/*Open file here*/
+	    result = f_open(&file1, "test.wav", FA_READ);
+	    //result = f_open(&file1, "test.wav", FA_READ);
+		//result = f_open(&file1, "guardian.wav", FA_READ);
+	    if(result != 0) {
+	    	xil_printf("No mp3: %d\r\n", result);
+	    } else {
+	    	xil_printf("Si mp3: %d\r\n", result);
+	    }
+
+
 
 	while (!XUartPs_IsReceiveData(UART_BASEADDR)){
+		result = f_read(&file1, &read_note, 2, &counter);
+		//result = f_read(&file1, &read_note, 2, &counter);
+		//result = f_read(&file1, &read_note, 2, &counter);
 
+		//xil_printf("Value read %x\n\r", read_note);
 		// Read audio input from codec
 		in_left = Xil_In32(I2S_DATA_RX_L_REG);
 		in_right = Xil_In32(I2S_DATA_RX_R_REG);
 
 		// Write audio input to codec
-		Xil_Out32(I2S_DATA_TX_L_REG, in_left);
-		Xil_Out32(I2S_DATA_TX_R_REG, in_right);
+		//Xil_Out32(I2S_DATA_TX_L_REG, in_left);
+		//Xil_Out32(I2S_DATA_TX_R_REG, in_right);
 
-		*(baseaddr_p+0) = read;
-		//Xil_Out32(*(baseaddr_p+0), 2);
-		//read = Xil_In32(*(baseaddr_p+2));
+		Xil_Out32(I2S_DATA_TX_L_REG, read_note);
+		//result = f_read(&file1, &read_note, 2, &counter);
+		result = f_read(&file1, &read_note, 2, &counter);
+		//result = f_read(&file1, &read_note, 2, &counter);
+		Xil_Out32(I2S_DATA_TX_R_REG, read_note);
+		//usleep(40);
+
+		usleep(20.5); // original
 
 
-		//xil_printf("Value to multiply %d\n\r", *(baseaddr_p+0));
-		xil_printf("Value to multiply %d\n\r", read);
-		xil_printf("Value read %d\n\r", *(baseaddr_p+1));
 
-		if(read > 30) {
-			//read = 0b11111111111111111111111111101011;
-		} else {
-			read = read + 0b00000000000000000000000000000001;
-		}
+//		*(baseaddr_p+0) = read;
+//		//Xil_Out32(*(baseaddr_p+0), 2);
+//		//read = Xil_In32(*(baseaddr_p+2));
+//
+//
+//		//xil_printf("Value to multiply %d\n\r", *(baseaddr_p+0));
+//		xil_printf("Value to multiply %d\n\r", read);
+//		xil_printf("Value read %d\n\r", *(baseaddr_p+1));
+//
+//		if(read > 30) {
+//			//read = 0b11111111111111111111111111101011;
+//		} else {
+//			read = read + 0b00000000000000000000000000000001;
+//		}
 		//xil_printf("L: %d , R: %d \r\n", in_left, in_right);
 //		if(counter == 44100){
 //			xil_printf("S\n\r");

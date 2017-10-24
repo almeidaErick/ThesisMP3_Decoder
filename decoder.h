@@ -16,8 +16,16 @@
 #define PI12 0.261799388
 #define PI36 0.087266463
 #define PI64 0.049087385
-#define SCALE 32768
+#define SCALE 32767
 #define	BUFFERSIZE 8192		/* x 2 bytes */
+
+
+//--------------------------------Register controllers-------------------------------------------
+#define INPUT_ADDRESS 24
+#define OUTPUT_ADDRESS 16
+#define BLOCK_TYPE_ADDRESS 14
+#define DONE_WRITING 13
+#define INPUT_RAM_MODE 12
 
 /*
     NOTES ON FUNCTIONS TESTED

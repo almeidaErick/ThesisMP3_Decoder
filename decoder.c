@@ -9,6 +9,10 @@
 #include "xtime_l.h"
 
 
+u32 *baseaddr_p = (u32*) IMDCT_BASE;
+
+
+
 unsigned int counter;
 
 
@@ -286,6 +290,7 @@ HUFFBITS dmask = (HUFFBITS)1 << (sizeof(HUFFBITS)*8-1);
        int	i, j, l;
        static short int outsamp[BUFFERSIZE];
        static long k = 0;
+       unsigned int count;
 //       FILE* left;
 //       FILE* right;
 //
@@ -304,6 +309,7 @@ HUFFBITS dmask = (HUFFBITS)1 << (sizeof(HUFFBITS)*8-1);
 //    	   xil_printf("Se abrio el archivo\r\n");
 //       }
 
+       //xil_printf("SAMPLES: ");
 
        for(i = 0; i < SSLIMIT; i++) {
            for(j = 0; j < SBLIMIT; j++) {
@@ -312,16 +318,16 @@ HUFFBITS dmask = (HUFFBITS)1 << (sizeof(HUFFBITS)*8-1);
             	   //xil_printf("VALOR DE K: %lu\n\r", k);
                    if(!(k & (BUFFERSIZE-1)) && k) {
                        //Samples are big-endian. If thisis a little-endian machine we must swap
-                       SwapBytesInWords(outsamp, BUFFERSIZE);
+                       //SwapBytesInWords(outsamp, BUFFERSIZE);
 //                       if(l == 0) {
 //                           fwrite(outsamp, 2, BUFFERSIZE, outFile);
 //                       }
-                       //fwrite(outsamp, 2, BUFFERSIZE, outFile);
+                       f_write(outFile, outsamp, BUFFERSIZE, count);
                        //xil_printf(outFile, "%d %d", outsamp[0], outsamp[1]);
                        k = 0;
                    }
 
-                   pcm_sample_last[l][i][j] = pcm_sample[l][i][j] + 32765;
+                   //pcm_sample_last[l][i][j] = pcm_sample[l][i][j] + 32765;
 
                    //if(pcm_sample[l][i][j] < 0) {
                        //pcm_sample_last[l][i][j] = pcm_sample[l][i][j] + 32765;
@@ -338,10 +344,11 @@ HUFFBITS dmask = (HUFFBITS)1 << (sizeof(HUFFBITS)*8-1);
                    }*/
                    //xil_printf(outFile, "%d ", pcm_sample[l][i][j]);
                    outsamp[k++] = pcm_sample[l][i][j];
-                   //xil_printf("%d\n\r", pcm_sample[l][i][j]);
+                   //xil_printf("%d, ", (int)pcm_sample[l][i][j]);
                }
            }
        }
+       //xil_printf("\n\r");
 
 //       fclose(left);
 //       fclose(right);
@@ -377,86 +384,191 @@ HUFFBITS dmask = (HUFFBITS)1 << (sizeof(HUFFBITS)*8-1);
        }
        bufOffset[ch] = (bufOffset[ch] - 64) & 0x3ff;
        bufOffsetPtr = &((*buf)[ch][bufOffset[ch]]);
+       //xil_printf("BAND PTR: ");
        for (i = 0; i < 64; i++) {
            sum = 0;
-           for (k = 0; k < 32; k++)
-               sum += bandPtr[k] * (*filter)[i][k];
+           for (k = 0; k < 32; k++){
+        	   if(i == 1){
+        	   //xil_printf("%d, ", (int)(bandPtr[k] * 32750));
+        	   }
+               sum += bandPtr[k] * 32767 *  (*filter)[i][k];
+           }
            bufOffsetPtr[i] = sum;
+
        }
+
 
        for (j = 0; j < 32; j++) {
            sum = 0;
            for (i = 0; i < 16; i++) {
                k = j + (i << 5);
-               sum += dewindow[k] * (*buf)[ch][((k + (((i + 1) >> 1) << 6))
+               sum += dewindow[k] * 32767 * (*buf)[ch][((k + (((i + 1) >> 1) << 6))
                + bufOffset[ch]) & 0x3ff];
            }
 
 
+
+           // I add this here..!!!
+           sum = sum / 32767.0;
+
+           //xil_printf("%d, ", (int)(sum));
+
            if (sum > 0) {
-               foo = (long) (sum * (float) SCALE + (float) 0.5);
+               //foo = (long) (sum / (float) SCALE + (float) 0.5);
+               foo = (long) (sum + 0.5);
+
            } else {
-               foo = (long) (sum * (float) SCALE - (float) 0.5);
+               //foo = (long) (sum / (float) SCALE - (float) 0.5);
+               foo = (long) (sum - 0.5);
            }
-           if (foo >= (long) SCALE) {
-               samples[j] = (short) (SCALE - 1);
-           } else if (foo < (long) -SCALE) {
-               samples[j] = (short) (-SCALE);
-           } else
-               samples[j] = (short) foo;
+           //xil_printf("%d, ", (int)foo);
+//           if (foo >= (long) SCALE) {
+//               samples[j] = (short) (SCALE - 1);
+//           } else if (foo < (long) -SCALE) {
+//               samples[j] = (short) (-SCALE);
+//           } else
+//               samples[j] = (short) foo;
 
+           //xil_printf("%d, ", samples[j]);
            // faster..!!!!
-           //samples[j] = sum * SCALE;
-
+           samples[j] = (int)foo;
+           //xil_printf("%d, ", samples[j]);
            //xil_printf("SAMPLE: %d\n\r", samples[j]);
            //pcm_output[frameNum-1][gr_global][ch_global][ss_global][j]=samples[j];
        }
+       //xil_printf("\n\r");
    }
-
 
 
 
    void inv_mdct(
-           float in[18],
-           float out[36],
-           int	block_type) {
+              float in[18],
+              float out[36],
+              int	block_type) {
+	   int i; // used only for loops
+	   u32 hold = 0;
 
-       int i,m,N,p;
-       float tmp[12],sum;
-       for(i = 0; i < 36; i++)
-           out[i] = 0;
+	   u32 *register_1 = baseaddr_p+0; // pointer for Input of 32 bits
+	   u32 *register_2 = baseaddr_p+1; // pointer for output of 32 bits
+	   u32 *register_3 = baseaddr_p+2; // address_in(8-bits), address_out(8-bits), block_type(2-bits), done_writing_input(1-bit), mode_input_output(1-bit) m=1 to write, m=0 to read
+	   u32 *register_4 = baseaddr_p+3; // pointer to check when the output samples are ready
 
-       if(block_type == 2) {
-           N = 12;
-           for(i = 0; i < 3; i++) {
-               for(p = 0; p < N; p++) {
-                   sum = 0.0;
-                   for(m = 0; m < N/2; m++) {
-                       int k = (m) + (m<<1);
-                       sum += in[i+k] * (cos_tab_1[p][m]);
-                   }
-                   tmp[p] = sum * win[block_type][p] ;
-               }
-               for(p = 0; p < N; p++) {
-                   int k = (i<<1) + (i<<2);
-                   out[k+p+6] += tmp[p];
-               }
-           }
-       } else {
-           N=36;
-           for(p= 0;p<N;p++){
-               sum = 0.0;
-               for(m=0;m<N/2;m++){
-                   int k = ((p*m)<<2) + (p<<1) + (m<<5)+(m<<2)+(m<<1)+19;
-                   while(k>=144){
-                       k = k - 144;
-                   }
-                   sum += in[m] * COS[k];
-               }
-               out[p] = sum * win[block_type][p];
-           }
-       }
+	   /*
+	    *  write here samples to input RAM
+	    *
+	    */
+	   for (i = 0; i < 18; i++) {
+		   // setting hold as: input address defined by i, defining block type value, and setting input block ram as writing mode.
+		   hold = (i << INPUT_ADDRESS) | (block_type << BLOCK_TYPE_ADDRESS) | (1 << INPUT_RAM_MODE); //not neccesary to specify done_writing bit and address_out bits
+		   *(register_3) = hold;
+		   *(register_1) = i+1; // send input here
+
+		   //xil_printf("value: %d, block_type: %d\n\r", *(register_3), block_type);
+	   }
+
+	   xil_printf("value: %d, block_type: %d\n\r", *(register_3), block_type);
+
+	   /*
+	    * Before sending signal of finishing writing to input ram, remember to change the input block ram mode to read
+	    * check register_3
+	    */
+
+
+	   /*
+	    * change mode of operation of input block ram... change to read mode
+	    * this section is proved to be working
+	   	*/
+
+	   *(register_3) = *(register_3) ^ (1 << INPUT_RAM_MODE);
+
+	   /**
+	    * send signal of finish writing here..!!
+	    * this signal has been tested, if not present the program will wait "forever"
+	    * this section is proved to be working
+	    */
+	   *(register_3) = *(register_3) | (1 << DONE_WRITING);
+
+	   /*
+	    * wait until the FPGA has done its working
+	    */
+	   //xil_printf("output before: %d, send input: %d, block type: %d\n\r", *(register_4), *(register_3), block_type);
+	   while(*(register_4) != 1) {
+		   //xil_printf("output during: %d, send input: %d, block type: %d\n\r", *(register_4), *(register_3), block_type);
+	   }
+
+	   /*
+	    * Read samples from output ram
+	    */
+
+	   //*(register_3) = 0;
+	   for (i = 0; i < 36; i++) {
+		   hold = (1 << DONE_WRITING) | (i << OUTPUT_ADDRESS); //only the output address to read nees to be set here
+		   *(register_3) = hold;
+		   //if(*(register_2) != 0) {
+		   if(block_type != 0) {
+		   	   //xil_printf("OUTPUT SAMPLE: %d, INDEX: %d, BLOCK TYPE: %d\n\r", *(register_2), i, block_type);
+		   }
+
+		   //xil_printf("OUTPUT ADDRESS: %d\n\r", *(register_3));
+	   }
+
+	   //xil_printf("output after: %d, send input: %d, block type: %d\n\r", *(register_4), *(register_3), block_type);
+	   *(register_3) = 0; //activate reset mode for output block...!!
+	   //xil_printf("output done: %d\n\r", *(register_4));
+
+
    }
+
+
+
+
+//   void inv_mdct(
+//           float in[18],
+//           float out[36],
+//           int	block_type) {
+//
+//       int i,m,N,p;
+//       float tmp[12],sum;
+//       for(i = 0; i < 36; i++)
+//           out[i] = 0;
+//
+//       if(block_type == 2) {
+//           N = 12;
+//           for(i = 0; i < 3; i++) {
+//               for(p = 0; p < N; p++) {
+//                   sum = 0.0;
+//                   for(m = 0; m < N/2; m++) {
+//                       int k = (m) + (m<<1);
+//                       sum += in[i+k] * (cos_tab_1[p][m]);
+//                   }
+//                   tmp[p] = sum * win[block_type][p] ;
+//               }
+//               for(p = 0; p < N; p++) {
+//                   int k = (i<<1) + (i<<2);
+//                   out[k+p+6] += tmp[p];
+//
+//               }
+//           }
+//       } else {
+//           N=36;
+//           for(p= 0;p<N;p++){
+//               sum = 0.0;
+//               for(m=0;m<N/2;m++){
+//                   int k = ((p*m)<<2) + (p<<1) + (m<<5)+(m<<2)+(m<<1)+19;
+//                   while(k>=144){
+//                       k = k - 144;
+//                   }
+//                   sum += in[m] * COS[k];
+//               }
+//               out[p] = sum * win[block_type][p];
+//           }
+//       }
+////       xil_printf("OUTPUT: ");
+////       for(i = 0; i < 32; i++) {
+////    	   xil_printf("%d, ", out[i]);
+////       }
+////       xil_printf("\n\r");
+//   }
 
 
 
@@ -490,10 +602,15 @@ HUFFBITS dmask = (HUFFBITS)1 << (sizeof(HUFFBITS)*8-1);
        //inv_mdct
        inv_mdct(fsIn, rawout, bt);
        /* Overlap addition */
+
+       //xil_printf("OUTPUT: ");
+
        for (ss = 0; ss < SSLIMIT; ss++) {		/* 18 */
            tsOut[ss] = rawout[ss] + prevblck[ch][sb][ss];
            prevblck[ch][sb][ss] = rawout[ss+18];
+           //xil_printf("%d, ", (int)prevblck[ch][sb][ss]);
        }
+       //xil_printf("\n\r");
    }
 
 
@@ -1195,6 +1312,7 @@ void huffman_decode(long int is[SBLIMIT][SSLIMIT], SideInfoType* side_info, int 
     }
 
     /* Read bigvalues area */
+    //xil_printf("\n\rHUFFMAN START: ");
     for (i = 0; i < side_info->ch[ch].gr[gr].big_values * 2; i += 2) {
         if (i < region1Start) {
             //xil_printf("Region 1 HERE...!!!\n\r");
@@ -1212,6 +1330,7 @@ void huffman_decode(long int is[SBLIMIT][SSLIMIT], SideInfoType* side_info, int 
 
         is[i / SSLIMIT][i % SSLIMIT] = x;
         is[(i+1) / SSLIMIT][(i+1) % SSLIMIT] = y;
+        //xil_printf("%d, %d, ", x, y);
     }
 
     h = &ht[(side_info->ch[ch].gr[gr].count1table_select) + 32];
@@ -1222,8 +1341,10 @@ void huffman_decode(long int is[SBLIMIT][SSLIMIT], SideInfoType* side_info, int 
         is[(i+1) / SSLIMIT][(i+1) % SSLIMIT] = w;
         is[(i+2) / SSLIMIT][(i+2) % SSLIMIT] = x;
         is[(i+3) / SSLIMIT][(i+3) % SSLIMIT] = y;
+        //xil_printf("%d, %d, %d, %d\n\r", v, w, x, y);
         i += 4;
     }
+
 
     grBits = part2_length + side_info->ch[ch].gr[gr].part2_3_length;
 
@@ -1400,13 +1521,14 @@ int get_side_info(NewBuffer* load_info, FrameHeader* header_info, SideInfoType* 
     } else {
         // LSF here
     }
-//    if(load_info->bad_block == 0) {
-//    	xil_printf("no hay bad block mijares\n\r");
-//        return 1;
-//    } else {
-//    	xil_printf("si hay bad block mijares\n\r");
-//        return 0;
-//    }
+    if(load_info->bad_block == 0) {
+    	//xil_printf("no hay bad block mijares\n\r");
+        return 1;
+    } else {
+    	//xil_printf("si hay bad block mijares\n\r");
+        return 0;
+    }
+
 }
 
 
@@ -1463,7 +1585,14 @@ void frame_details(){
 
     initialize_huffman();
 
+    /*Open file here*/
+        result = f_open(&musicout, "pres.txt", FA_OPEN_ALWAYS | FA_WRITE);
+        if(result != 0) {
+        	xil_printf("No musicout: %d\r\n", result);
 
+        } else {
+        	xil_printf("Si musicout: %d\r\n", result);
+        }
 
 
     /*Open file here*/
@@ -1479,23 +1608,24 @@ void frame_details(){
 
 
 
-    /*Open file here*/
-    result = f_open(&musicout, "musicout4.txt", FA_CREATE_ALWAYS);
-    if(result != 0) {
-    	xil_printf("No musicout: %d\r\n", result);
-
-    } else {
-    	xil_printf("Si musicout: %d\r\n", result);
-    }
+//    /*Open file here*/
+//    result = f_open(&musicout, "musicout4.txt", FA_CREATE_ALWAYS);
+//    if(result != 0) {
+//    	xil_printf("No musicout: %d\r\n", result);
+//
+//    } else {
+//    	xil_printf("Si musicout: %d\r\n", result);
+//    }
 
     sample_frames = 0;
 
     result = 0;
 
     //while(f_read(start_frame->ptr, &byte_read, 1, &counter) == 0){
-    while(result == 0){
+    //while(result == 0){
+    while((result == 0) && (i < 4000)) {
     	result = f_read(start_frame->ptr, &start_frame->read_char, 1, &counter);
-    	//xil_printf("ENTRO CHUCHA: %d...... error: %d\r\n", j++, counter);
+    	//xil_printf("char: %c\r\n", start_frame->read_char);
     	syncChar = (syncChar << 8) | start_frame->read_char;
         if(i == 0) {
             readFrame.ini_bit_rate = readFrame.bit_rate;
@@ -1544,31 +1674,41 @@ void frame_details(){
                             antialias(re, hybridIn, &(sideInfo.ch[ch].gr[gr]), &readFrame); /* antialias butterflies*/
                             unsigned char sb=0;
                             unsigned char ss=0;
+                            //xil_printf("Hibrid: ");
                             for(sb = 0; sb < SBLIMIT; sb++) {   /* hybrid synthesis*/
                                 /*
                                     hybrid here
                                 */
 
                                 hybrid(hybridIn[sb], hybridOut[sb], sb, ch, &(sideInfo.ch[ch].gr[gr]), &readFrame);
-
+                                //xil_printf("SYNTHESIS DONE MIJARES\n\r");
                             }
+
 
                             for(ss = 0; ss < 18; ss++) {
                                 for(sb = 0; sb < SBLIMIT; sb++) {
                                     if((ss%2) && (sb%2)) {
                                         hybridOut[sb][ss] = -hybridOut[sb][ss];
+                                        //xil_printf("%d, ", (int)(hybridOut[sb][ss] * 32750));
                                     }
                                 }
                             }
 
+                            //xil_printf("\n\r");
+
+                            //xil_printf("START: ");
                             for(ss = 0; ss < 18; ss++) {
-                                for (sb = 0; sb < SBLIMIT; sb++)
+                                for (sb = 0; sb < SBLIMIT; sb++) {
                                     polyPhaseIn[sb] = hybridOut[sb][ss];
+                                    //xil_printf("%d, ", (int)(polyPhaseIn[sb]* 32750));
+                                }
                                 /*
                                     Here add subBandSynthesis..!!!!
                                 */
                                 SubBandSynthesis(polyPhaseIn, ch, &((pcm_sample)[ch][ss][0]));
+                                //xil_printf("%d, ", (pcm_sample)[ch][ss][0]);
                             }
+                            //xil_printf("\n\r");
                             //xil_printf("SYNTHESIS DONE MIJARES\n\r");
 
                         }
