@@ -148,7 +148,7 @@ signal ps_mode_control_block : std_logic; -- come from PS to PL to control input
 signal pl_mode_control_block : std_logic; -- come from PL file (imdct_process.vhd) to output block ram 
 -- Signals to control state from input block ram and output block ram end here
 
-signal done_output_block : Integer; -- com from PL to PS indicates when the output block ram is full
+signal done_output_block : Integer := 0; -- com from PL to PS indicates when the output block ram is full
 -- SIGNALS USED FOR INPUT SIGNALS FROM FILE (imdct_process.vhd) END HERE --------------------------------------------------------------------------------------------------------
 
 
@@ -223,6 +223,7 @@ begin
     block_type_frame <= block_type;
     
     done_writing_output <= done_output_block; 
+    --done_writing_output <= 1;
     done_input_block <= done_writing_input;
     
     
@@ -300,6 +301,7 @@ begin
                             short_block_start <= '1';
                         else
                             long_block_start <= '1';
+                            short_block_start <= '0'; ----------------------- IMPORTANT BUG FIXED...!!!!!!!!!!!!!!!!!!
                         end if;
                         pl_mode_control_block <= '1'; -- set block ram output as write mode..!!!
                         writing_control <= wait_to_input;
@@ -499,7 +501,7 @@ begin
                         m := 0; -- start inner loop again..!!!
                         sum := 0; -- restart sum...!!!
                         -- set address for output block ram
-                        pl_address_in_long <= std_logic_vector(to_unsigned(p, pl_address_in_short'length));
+                        pl_address_in_long <= std_logic_vector(to_unsigned(p, pl_address_in_long'length));
                     else
                         long_block_control <= S0;
                         done_writing_long <= '1';
